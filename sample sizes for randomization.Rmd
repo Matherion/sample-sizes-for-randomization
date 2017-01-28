@@ -13,9 +13,31 @@ output: html_document
 ################################################################################
 ################################################################################
 
-### Directories where the results will be stored
-basePath <- "B:/Data/research/Randomization"
-workingPath <- file.path(basePath, "results");
+########################################################################
+### Paths
+########################################################################
+
+### Add any relevant paths to this vector. The script will select the
+### correct path itself.
+
+basePathVector <- c("B:/Data/research/randomization/sample-sizes-for-randomization",
+                    "");
+
+########################################################################
+### Set the variables with the paths
+########################################################################
+
+### Check which paths exist and set the first existing path in the list
+### as the base path
+basePath <- basePathVector[sapply(basePathVector, dir.exists)][1];
+
+### Set the additional paths
+workingPath <- basePath;
+outputPath <- basePath;
+
+########################################################################
+### Packages
+########################################################################
 
 ### For function 'vecTxt' and 'safeRequire'; also loads ggplot2 which
 ### we'll use for the plots
@@ -35,6 +57,10 @@ require('pander', quietly = TRUE)
 
 ### For knitting and accessing knitr functions
 require('knitr', quietly = TRUE);
+
+########################################################################
+### Settings
+########################################################################
 
 ### Setting default knitting options
 knitr::opts_chunk$set(echo=FALSE);
