@@ -1,0 +1,795 @@
+---
+title: "Randomization Results Section"
+author: "Gjalt-Jorn Ygram Peters & Stefan Gruijters"
+date: "`r format(Sys.time(), '%d %b %Y at %H:%M:%S');`"
+output: html_document
+---
+
+```{r preparation, echo=FALSE, results="hide", message=FALSE, error=FALSE, cache=FALSE}
+
+################################################################################
+################################################################################
+### Configure basic settings
+################################################################################
+################################################################################
+
+### Directories where the results will be stored
+basePath <- "B:/Data/research/Randomization"
+workingPath <- file.path(basePath, "results");
+
+### For function 'vecTxt' and 'safeRequire'; also loads ggplot2 which
+### we'll use for the plots
+require('userfriendlyscience', quietly = TRUE);
+
+### For function 'mvrnorm'
+require('MASS', quietly = TRUE);
+
+### For functions 'raply' and 'ddply'
+require('plyr', quietly = TRUE);
+
+### For functions 'melt' and 'dcast'
+require('reshape2', quietly = TRUE)
+
+### For function 'pander'
+require('pander', quietly = TRUE)
+
+### For knitting and accessing knitr functions
+require('knitr', quietly = TRUE);
+
+### Setting default knitting options
+knitr::opts_chunk$set(echo=FALSE);
+knitr::opts_chunk$set(comment=NA);
+knitr::opts_chunk$set(dev="png", 
+		  		            dev.args=list(type="cairo"),
+			    	          dpi=100);
+knitr::opts_chunk$set(fig.width=5);
+knitr::opts_chunk$set(fig.height=5);
+knitr::opts_chunk$set(cache=TRUE);
+knitr::opts_knit$set(eval.after = 'fig.cap');
+
+options(scipen=100);
+options(figure_counter = TRUE);
+options(table_counter = TRUE);
+
+setFigCapNumbering(figure_counter_str = "Figure %s: ",
+                   figureClass = "caption",
+                   figureInlineStyle = NULL);
+setTabCapNumbering(table_counter_str = ":Table %s: ");
+
+################################################################################
+################################################################################
+### Define helper functions
+################################################################################
+################################################################################
+
+### Number of replicates to run for each simulation.
+replicates = 1000;
+
+### Sample sizes for which to run the simulation
+nRange = seq(from=20, to=1000, by=10);
+
+### This list specifies the other parameters of the simulations. nVars specifies
+### the number of confounders (has to be changed in both places), nClusters
+### specifies in how many (evenly sized) clusters the confounders are divided,
+### and rMeans specifies the intracluster correlations.
+simList <- list(`nVars=1` = list(nVars = 1, nClusters = 1, rMeans = 0),
+                `nVars=2` = list(nVars = 2, nClusters = 1, rMeans = c(0, .1, .3, .5, .7)),
+                `nVars=3` = list(nVars = 3, nClusters = 1, rMeans = c(0, .1, .3, .5, .7)),
+                `nVars=6` = list(nVars = 6, nClusters = 1:3, rMeans = c(0, .1, .3, .5, .7)),
+                `nVars=12` = list(nVars = 12, nClusters = 1:4, rMeans = c(0, .1, .3, .5, .7)));
+
+secondSimListnVarRange <- c(1:9, seq(10, 90, by=10), seq(100, 1000, by=100));
+
+### Values of Cohen's D for which the probabilities are computed. This is the
+### only parameter that barely impacts the time it takes to run the script.
+criticalCohensDs = seq(from=.1, to=1, by=.1);
+
+### The default specifications as set above mean that 1000 replicates are
+### computed for 99 sample sizes. This simulation is repeated for 5
+### different numbers of confounders, divided in a total of 10 cluster sizes,
+### with a total of 21 different intracluster correlations.
+### For 1 confounder, only 99 * 1 * 1 = 1000 = 99000 datapoints are simulated;
+### for 2 confounders, 99 * 2 * 1 * 5 * 1000 = 990000 datapoints are simulated;
+### for 3 confounders, 99 * 3 * 1 * 5 * 1000 = 1485000 datapoints are simulated;
+### for 6 confounders, 99 * 6 * 3 * 5 * 1000 = 8910000 datapoints are simulated;
+### for 12 confounders, 99 * 12 * 4 * 5 * 1000 = 23760000 datapoints are simulated;
+### so in total, 35244000 or 35 million datapoints are simulated. This can
+### take a while; on an Asus N551VW, i7-6700HQ CPU @ 2/60GHz, 16 GB RAM,
+### Samsung SSD 850 EVO 500GB, the process takes about 4.5 hours.
+
+### Set a seed for the random number generator to get the same results every time
+set.seed(19811026);
+
+### Filename to use to save (or load) the full long dataframe
+longResultsFileName <- file.path(basePath,
+                                 paste0("RandomSim Results (long), ",
+                                        paste0(range(lapply(simList, function(x) return(x$nVars))), collapse="-"),
+                                        " confounders in ",
+                                        paste0(range(lapply(simList, function(x) return(x$nClusters))), collapse="-"),
+                                        " clusters, r from ",
+                                        paste0(range(lapply(simList, function(x) return(x$rMeans))), collapse="-"),
+                                        ", n from ",
+                                        paste0(range(nRange), collapse="-"),
+                                        " (", replicates, " replicates).csv"));
+
+### Filename to use to save (or load) the full long dataframe
+moreLongResultsFileName <- file.path(basePath,
+                                 paste0("More RandomSim Results (long).csv"));
+
+################################################################################
+################################################################################
+### Define helper functions
+################################################################################
+################################################################################
+
+createSigma <- function(nVar, meanR = .3, sdR = 0, diagonal = 1) {
+  Sigma <- matrix(rnorm(n = nVar^2,
+                        mean = meanR,
+                        sd = sdR),
+                  ncol = nVar);
+  Sigma[(Sigma < -1) | (Sigma > 1)] <- 1;
+  if (!is.null(diagonal)) {
+    diag(Sigma) <- diagonal;
+  }
+  return(Sigma);
+}
+
+passedTimeString <- function(intrval) {
+  intrval.hrs <- trunc(intrval / 60 / 60);
+  intrval.mins <- trunc((intrval - 60 * 60 * intrval.hrs) / 60);
+  intrval.secs <- trunc((intrval - 60 * 60 * intrval.hrs - 60 * intrval.mins));
+  return(paste0(intrval.hrs, ":", intrval.mins, ":", intrval.secs));
+}
+
+logMsg <- function(..., logFile = NULL, silent=FALSE) {
+  finalMsg <- paste0(..., collapse="\n");
+  if (!silent) cat(finalMsg);
+  if (!is.null(logFile)) {
+    con <- file(logFile, open="a");
+    writeLines(finalMsg, con);
+    close(con);
+  }
+  invisible();
+}
+
+################################################################################
+################################################################################
+### Randomization simulation function
+################################################################################
+################################################################################
+
+randomizationSimulations <- function(samples, nRange, nVars,
+                                     rMeans, nClusters, criticalCohensDs,
+                                     outputPath, 
+                                     logFile = NULL, silent = FALSE,
+                                     filetitle = "randomization simulation - ",
+                                     saveIntermediateData = FALSE) {
+  
+  totalRepetitions <- length(nClusters) * length(rMeans);
+  
+  startTime <- Sys.time();
+  currentRepetition <- 0;
+  
+  res <- list(input = as.list(environment()),
+              intermediate = list(),
+              output = list());
+  
+  logMsg(logFile = logFile, silent=silent,
+         "### It is now ", strftime(startTime), ".\n",
+       "### Starting simulation with ", samples, " replicates for ",
+       length(nRange), " samples sizes ranging from ", min(nRange),
+       " to ", max(nRange), ", and ", nVars, " confounders.\n",
+       "### This will be repeated with data in ",
+       length(nClusters), " cluster sizes (of ",
+       vecTxt(nClusters), ", so with respectively ",
+       vecTxt(nVars / nClusters), " confounders in each cluster),\n",
+       "### each for ", length(rMeans),
+       " mean intracluster correlations (of ", vecTxt(formatR(rMeans, 1)), ").\n",
+       "### This means I will repeat all ", samples, " replicates for all ",
+       length(nRange), " sample sizes ", totalRepetitions, " times.\n",
+       "### I will summarize the data for ", length(criticalCohensDs),
+       " critical Cohen's d values (of ", vecTxt(criticalCohensDs), ").");
+  
+  res$intermediate$sims <- list();
+  res$output$results <- list();
+  
+  for (currentRMean in rMeans) {
+
+    res$intermediate$sims[[paste0("r=", currentRMean)]] <- list();
+    res$output$results[[paste0("r=", currentRMean)]] <- list();
+    
+    for (currentNClusterSize in nClusters) {
+
+      res$intermediate$sims[[paste0("r=", currentRMean)]][[paste0("clusterSize=", currentNClusterSize)]] <-
+        list();
+      res$output$results[[paste0("r=", currentRMean)]][[paste0("clusterSize=", currentNClusterSize)]] <-
+        list();
+      
+      currentRepetition <- currentRepetition + 1;
+      
+      lapTime <- Sys.time();
+      intrval <- difftime(lapTime, startTime, units="secs");
+      
+      logMsg(logFile = logFile, silent=silent,
+             "\n\nStarting repetition ", currentRepetition,
+           " of ", totalRepetitions,
+           " (", 100 * currentRepetition / totalRepetitions, "%). Running with ",
+           currentNClusterSize, " cluster(s) of ", nVars / currentNClusterSize,
+           " confounders with an intracluster correlation of ", formatR(currentRMean, 1), ".\n",
+           "It is now ", strftime(lapTime), ", so ", passedTimeString(intrval), " has passed (or ",
+           round(as.numeric(difftime(lapTime, startTime, units="secs")), 2), " seconds, ",
+           round(as.numeric(difftime(lapTime, startTime, units="mins")), 2), " minutes, ",
+           round(as.numeric(difftime(lapTime, startTime, units="hours")), 2), " hours).\n");
+      
+      if (currentRepetition > 1) {
+        timePerRepetition <- intrval / (currentRepetition - 1);
+        
+        timeToGo <- timePerRepetition * (totalRepetitions - currentRepetition + 1);
+        
+        logMsg(logFile = logFile, silent=silent,
+               passedTimeString(intrval), " for ", 100 * currentRepetition / totalRepetitions,
+             "% means that each repetition takes ", passedTimeString(timePerRepetition),
+             ", so I should be done in ", passedTimeString(timeToGo), ", or at ",
+             strftime(lapTime + timeToGo), ".\n");
+      }      
+      
+      simulatedCohensDs <-
+        raply(.n = samples,
+              .expr = sapply(nRange,
+                             function(sampleSize, nVars.local = nVars,
+                                      nClusters.local = currentNClusterSize,
+                                      currentRMean.local = currentRMean) {
+                               
+                               ### Compute number of variables in each cluster
+                               clusterSize <- nVars.local / nClusters.local;
+
+                               ### Simulate values for the confounders in that number of clusters
+                               confounderValues <-
+                                 matrix(sapply(1:nClusters.local, mvrnorm,
+                                               n = sampleSize,
+                                               mu = rep(0, clusterSize),
+                                               Sigma = createSigma(nVar = clusterSize,
+                                                                   meanR = currentRMean.local)),
+                                        ncol = nVars.local);
+                               
+                               ### Randomly create two groups
+                               groupVector <- factor(round(runif(sampleSize)));
+                               
+                               ### Compute Cohen's d values for each confounder
+                               cohensDs <-
+                                 apply(confounderValues, 2,
+                                       function(currentConfounder, group = groupVector) {
+                                         return((mean(currentConfounder[group == 0]) - 
+                                                   mean(currentConfounder[group == 1])) /
+                                                  sd(currentConfounder));
+                                       });
+                               
+                               if (nVars == 1) {
+                                 names(cohensDs) <- paste0("sampleSize=", sampleSize);
+                               } else {
+                                 names(cohensDs) <- paste0("confounder", 1:nVars.local);
+                               }
+                               
+                               return(cohensDs);
+                               
+                             }), .progress = progress_text(style=3, title =
+                                                             paste0("### Running simulations for ", currentNCluster,
+                                                                    "clusters of confounders, with a mean intracluster ",
+                                                                    "correlation of ", currentRMean, ".")));
+      
+      if (saveIntermediateData) {
+        res$intermediate$sims[[paste0("r=", currentRMean)]][[paste0("clusterSize=", currentNClusterSize)]] <-
+          simulatedCohensDs;
+      }
+
+      ### Using the thresholds specified in the criticalCohensDs to
+      ### establish how often a confounder differs between the conditions,
+      ### separate for each sample size.
+      if (nVars == 1) {
+        ### With only one variable, we only have to count the proportion
+        ### of replicates with group differences larger than the specified
+        ### Cohen's d values.
+        proportionsFailedRandomizations <- t(apply(simulatedCohensDs, 2, function(x) {
+          ### Count '1' for all replicates where any of the variables is
+          ### significant and '0' when none is using 'any' and 'apply', then
+          ### count how many replicates have at least one confounder that
+          ### differs between the groups using 'mean'.
+          return(sapply(criticalCohensDs, function(d) {
+            return(mean(abs(x) > d));
+          }));
+        }));
+      } else {
+        proportionsFailedRandomizations <- t(apply(simulatedCohensDs, 3, function(x) {
+          ### Count '1' for all replicates where any of the variables is
+          ### significant and '0' when none is using 'any' and 'apply', then
+          ### count how many replicates have at least one confounder that
+          ### differs between the groups using 'mean'.
+          return(sapply(criticalCohensDs, function(d) {
+            return(mean(apply(abs(x) > d, 1, any)));
+          }));
+        }));
+      }
+      
+      ### Set variable (column) names
+      colnames(proportionsFailedRandomizations) <- paste0("d=", criticalCohensDs);
+      
+      ### Add column with sample sizes
+      proportionsFailedRandomizations <- data.frame(sampleSize = nRange,
+                                                    proportionsFailedRandomizations);
+      
+      ### Store in output object
+      res$output$results[[paste0("r=", currentRMean)]][[paste0("clusterSize=", currentNClusterSize)]] <-
+        proportionsFailedRandomizations;
+      
+      ### Write dataframe to a file
+      write.csv(x = proportionsFailedRandomizations,
+                file = file.path(outputPath,
+                                 paste0(filetitle,
+                                        nVars, " confounders in ", currentNClusterSize,
+                                        " clusters, intracluster correlation ", currentRMean,
+                                        " (n from ", min(nRange),
+                                        "-", max(nRange), ", ", samples, " replicates).csv")),
+                row.names=FALSE);
+    }
+  }
+  
+  lapTime <- Sys.time();
+  intrval <- difftime(lapTime, startTime, units="secs");
+  timePerRepetition <- intrval / totalRepetitions;
+  
+  logMsg(logFile = logFile, silent=silent,
+         "\n\n### Now done, at ", strftime(lapTime), ". Started at ", strftime(startTime),
+         ", so this took ", passedTimeString(intrval), " (or ",
+         round(as.numeric(difftime(lapTime, startTime, units="secs")), 2), " seconds, ",
+         round(as.numeric(difftime(lapTime, startTime, units="mins")), 2), " minutes, ",
+         round(as.numeric(difftime(lapTime, startTime, units="hours")), 2), " hours).\n");
+
+  invisible(res);
+  
+}
+
+################################################################################
+################################################################################
+### Run the simulation
+################################################################################
+################################################################################
+
+### This is commented out by default; because it takes so long, you don't want
+### to accidently run it
+# simResults <- lapply(simList, function(x) {
+#   return(randomizationSimulations(samples = replicates,
+#                                   nRange = nRange,
+#                                   nVars = x[['nVars']],
+#                                   rMeans = x[['rMeans']],
+#                                   nClusters = x[['nClusters']],
+#                                   criticalCohensDs = criticalCohensDs,
+#                                   outputPath = workingPath,
+#                                   logFile = file.path(basePath,
+#                                                       paste0(x[['nVars']],
+#                                                              " vars - simulationLog.txt"))));
+# });
+
+### This is commented out by default; because it takes so long, you don't want
+### to accidently run it
+# moreSimResults <- list;
+# moreSimResults <- lapply(secondSimListnVarRange, function(x) {
+#   return(randomizationSimulations(samples = replicates,
+#                                   nRange = seq(50, 1000, 50),
+#                                   nVars = x,
+#                                   rMeans = 0,
+#                                   nClusters = 1,
+#                                   criticalCohensDs = criticalCohensDs,
+#                                   outputPath = workingPath,
+#                                   logFile = file.path(basePath,
+#                                                        paste0("second sim - ", x,
+#                                                               " vars - simulationLog.txt"))));
+# });
+
+################################################################################
+################################################################################
+### Convert into one long dataframe
+################################################################################
+################################################################################
+
+if (exists('simResults')) {
+  longResults <- lapply(simResults, function(x) {
+    res <- melt(x$output$results, id.vars='sampleSize');
+    rownames(res) <- NULL;
+    colnames(res) <- c('n', 'd', 'p', 'clusters', 'r');
+    res$d <- as.numeric(substring(res$d, 3))
+    res$clusters <- as.numeric(substring(res$clusters, 13))
+    res$r <- as.numeric(substring(res$r, 3))
+    print(head(res));
+    return(res);
+  });
+  
+  longResults <- melt(longResults, id.vars=c('n', 'd', 'clusters', 'r'));
+  colnames(longResults)[colnames(longResults) == 'L1'] <- 'confounders';
+  longResults$confounders <- as.numeric(substring(longResults$confounders, 7))
+  colnames(longResults)[colnames(longResults) == 'value'] <- 'p';
+  longResults$variable <- NULL;
+  
+  ### Check frequencies
+  freq(longResults$d);
+  freq(longResults$clusters);
+  freq(longResults$confounders);
+  freq(longResults$r);
+}
+
+if (exists('moreSimResults')) {
+  moreLongResults <- lapply(moreSimResults, function(x) {
+    res <- melt(x$output$results, id.vars='sampleSize');
+    rownames(res) <- NULL;
+    colnames(res) <- c('n', 'd', 'p', 'clusters', 'r');
+    res$d <- as.numeric(substring(res$d, 3))
+    res$clusters <- as.numeric(substring(res$clusters, 13))
+    res$r <- as.numeric(substring(res$r, 3))
+    print(head(res));
+    return(res);
+  });
+  
+  moreLongResults <- melt(moreLongResults, id.vars=c('n', 'd', 'clusters', 'r'));
+  colnames(moreLongResults)[colnames(moreLongResults) == 'L1'] <- 'confounders';
+  moreLongResults$confounders <- as.numeric(substring(moreLongResults$confounders, 7))
+  colnames(moreLongResults)[colnames(moreLongResults) == 'value'] <- 'p';
+  moreLongResults$variable <- NULL;
+
+  moreLongResults$confounders <- rep(secondSimListnVarRange,
+                                     each=length(seq(50, 1000, 50)) * length(criticalCohensDs));
+  
+  ### Check frequencies
+  freq(moreLongResults$d);
+  freq(moreLongResults$clusters);
+  freq(moreLongResults$confounders);
+  freq(moreLongResults$r);
+}
+
+### Write to a file, or read from it if the data dont' exist yet.
+if (exists('longResults')) {
+  write.csv(x = longResults, file = longResultsFileName, row.names=FALSE);
+} else {
+  longResults <- read.csv(longResultsFileName);
+}
+
+
+### Write to a file, or read from it if the data dont' exist yet.
+if (exists('moreLongResults')) {
+  write.csv(x = moreLongResults, file = moreLongResultsFileName, row.names=FALSE);
+} else {
+  moreLongResults <- read.csv(moreLongResultsFileName);
+}
+
+################################################################################
+################################################################################
+### Generate the plots
+################################################################################
+################################################################################
+
+randomSimPlot <- function(dat, x = 'n', y = 'p', z = 'd', yhat = NULL,
+                          title = NULL,
+                          xlab = "Sample Size",
+                          ylab = "Probability of non-equivalent groups",
+                          zlab = "Difference\n(Cohen's d)",
+                          reverseZ = FALSE,
+                          xbreaks = c(20, 200, 400, 600, 800, 1000),
+                          xlim = c(0, 1000),
+                          ybreaks = seq(from=0, to=1, by=.2),
+                          ylim=c(0, 1)) {
+  if (reverseZ) {
+    dat[, z] <- -1 * dat[, z]
+  }
+  zValues <- sort(unique(dat[, z]));
+  if (reverseZ) {
+    zLabels <- -1 * sort(unique(dat[, z]));
+  } else {
+    zLabels <- zValues;
+  }
+  if (is.null(yhat)) {
+    plot <- ggplot(dat, aes_string(x=x, y=y, group=z, color=z, fill=z)) +
+      geom_ribbon(mapping=aes_string(ymin='0', ymax=y, fill=z),
+                  colour=NA, na.rm=TRUE) +
+      geom_line(size=1, color='black', na.rm=TRUE);
+  } else {
+    plot <- ggplot(dat, aes_string(x=x, y=yhat, group=z, color=z, fill=z)) +
+      geom_ribbon(mapping=aes_string(ymin='0', ymax=yhat, fill=z),
+                  colour=NA, na.rm=TRUE) +
+      geom_line(size=1, color='black', na.rm=TRUE) + geom_point(aes_string(y=y)) +
+      scale_color_gradient(high="#DDDDDD", low="#333333",
+                           breaks = zValues,
+                           labels = zLabels,
+                           guide = guide_legend(title=zlab));
+  }
+  plot <- plot + ylab(ylab) + xlab(xlab) + theme_bw() +
+    scale_fill_gradient(high="#333333", low="#DDDDDD",
+                        breaks = zValues,
+                        labels = zLabels,
+                        guide = guide_legend(title=zlab)) +
+    scale_x_continuous(breaks = xbreaks, limits=xlim) +
+    scale_y_continuous(breaks = ybreaks, limits=ylim) +
+    theme(panel.ontop = TRUE, panel.background = element_rect(fill=NA),
+          panel.grid = element_line(color='black'),
+          panel.grid.major = element_line(color='black', size=0.5),
+          panel.grid.minor = element_line(color='black', size=0.05));
+  if (!is.null(title)) {
+    plot <- plot + ggtitle(title);
+  }
+  return(plot);
+}
+
+### Plotting probability of different groups as a function of sample size
+
+effectOfSampleSize <- ddply(longResults[longResults$confounders == 1  &
+                              longResults$clusters == 1 &
+                              longResults$r == 0, ], 'd', function(subDat) {
+  tryCatch({
+    coefs <- NLSstAsymptotic(sortedXyData('n', 'p', subDat));
+    predictedP <- coefs['b0'] + coefs['b1'] * (1 - exp(-exp(coefs['lrc']) * subDat[, 'n']));
+    return(cbind(subDat, predictedP));
+  }, error = function(e) {
+    predictedP <- subDat[, 'p'];
+    return(cbind(subDat, predictedP));
+  });
+});
+
+```
+
+The results for the simulation with one nuisance variable are shown in Figure 1 and Table 1. As sample sizes increase and effect sizes decrease, the probability of the nuisance variable differing between groups with a given effect size decreases. Even with only 20 participants (10 in each cell), the probability of one group mean being one standard deviation higher than the other group mean is only 4%. However, in one in three studies with a total sample size of 20, one group's mean is half a standard deviation higher than the other group's mean (a 'moderately large' difference). If smaller differences between groups are already considered problematic, the sample size required to constrain the probability of non-equivalent groups rapidly increases.
+
+If a difference between groups of Cohen's d = .2 or larger is considered problematic, even with a total sample size of 150 participants (75 per cell) still about one fifth of the studies (20%) will in fact be quasi-experiments with respect to this nuisance variable. To get the proportion of studies with non-equivalent groups below 10%, at least `r min(longResults[
+  longResults$confounders == 1 &
+    longResults$clusters == 1 &
+    longResults$r == 0 &
+    longResults$d == .2 &
+    longResults$p < .1, 'n']);` participants are required.
+
+```{r tab.cap="Probabilities of one nuisance variable differing between groups for Cohen's d's from .1-1 for sample sizes from 20-1000."}
+
+pander(round(dcast(longResults[
+  longResults$confounders == 1 &
+    longResults$clusters == 1 &
+    longResults$r == 0 &
+    (longResults$n %in% c(20, 40, 60, 80, 100, 150, 200, 300, 400, 500, 1000)),
+  c('n', 'd', 'p')],
+  n ~ d, value.var='p'), 2));
+
+```
+
+```{r fig.cap="Probability of one nuisance variable differing between groups for Cohen's d's from .1-1 for sample sizes from 20-1000."}
+
+# randomSimPlot(effectOfSampleSize[effectOfSampleSize$confounders == 1 &
+#                                    effectOfSampleSize$clusters == 1 &
+#                                    effectOfSampleSize$r == 0, ],
+#               y = 'p', yhat = 'predictedP', x = 'n', z = 'd');
+
+randomSimPlot(longResults[longResults$confounders == 1  &
+                            longResults$clusters == 1 &
+                            longResults$r == 0, ],
+              y = 'p', x = 'n', z = 'd');
+
+```
+
+Of course, in most situations, assuming that only one nuisance variable exists is almost as naive as assuming that non nuisance variables exist. Therefore, we also computed these probabilities as a function of the number of nuisance variables. For a Cohen's d of .5, these probabilities are shown in Figure 2 and Table 2, and for a Cohen's d of .2, in Figure 3 and Table 3.
+
+```{r tab.cap="Probabilities of at least one of 1-12 nuisance variables differing between groups with at least half a standard deviation (Cohen's d = .5) for sample sizes from 20 to 1000."}
+
+pander(round(dcast(longResults[
+  longResults$d == .5 &
+    longResults$clusters == 1 &
+    longResults$r == 0 &
+    (longResults$n %in% c(20, 40, 60, 80, 100, 120, 140, 160, 180, 200)),
+  c('n', 'confounders', 'p')],
+  confounders ~ n, value.var='p'), 2));
+
+```
+
+```{r fig.cap="Probability of at least one of 1-12 nuisance variables differing between groups with at least half a standard deviation (Cohen's d = .5) for sample sizes from 20 to 1000."}
+
+randomSimPlot(longResults[longResults$d == .5  &
+                            longResults$clusters == 1 &
+                            longResults$r == 0, ],
+              y = 'p', x = 'n', z = 'confounders',
+              zlab = 'Nuisance\nvariables',
+              xlim=c(0, 200),
+              xbreaks = c(0, 50, 100, 150, 200),
+              reverseZ = TRUE);
+
+```
+
+```{r tab.cap="Probabilities of at least one of 1-12 nuisance variables differing between groups with at least a fifth of a standard deviation (Cohen's d = .2) for sample sizes from 20 to 1000."}
+
+pander(round(dcast(longResults[
+  longResults$d == .2 &
+    longResults$clusters == 1 &
+    longResults$r == 0 &
+    (longResults$n %in% c(20, 40, 60, 80, 100, 150, 200, 300, 400, 500, 1000)),
+  c('n', 'confounders', 'p')],
+  confounders ~ n, value.var='p'), 2));
+
+```
+
+```{r fig.cap="Probability of at least one of 1-12 nuisance variables differing between groups with at least a fifth of a standard deviation (Cohen's d = .2) for sample sizes from 20 to 1000."}
+
+randomSimPlot(longResults[longResults$d == .2  &
+                            longResults$clusters == 1 &
+                            longResults$r == 0, ],
+              y = 'p', x = 'n', z = 'confounders',
+              zlab = 'Nuisance\nvariables',
+              reverseZ = TRUE);
+
+```
+
+For a Cohen's d of .5, even when a researcher assumes that 12 nuisance variables may exist, already with `r min(longResults[
+  longResults$confounders == 12 &
+    longResults$clusters == 1 &
+    longResults$r == 0 &
+    longResults$d == .5 &
+    longResults$p < .1, 'n']);` participants, nonequivalent groups occur in only 10% of the studies. However, it may be hard to defend that groups that differ half a standard deviation on one or more confounders are considered 'equivalent'. Requiring groups to differ at most one-fifth of a standard deviation (Cohen's d = .2, a 'trivial' effect size) means that considerably larger samples are required to achieve equivalent groups in a large proportion of the studies (for 12 nuisance variables, `r min(longResults[
+  longResults$confounders == 12 &
+    longResults$clusters == 1 &
+    longResults$r == 0 &
+    longResults$d == .2 &
+    longResults$p < .1, 'n']);` participants, and for 6 nuisance variables, `r min(longResults[
+  longResults$confounders == 6 &
+    longResults$clusters == 1 &
+    longResults$r == 0 &
+    longResults$d == .2 &
+    longResults$p < .1, 'n']);` participants).
+    
+These estimates assume that all nuisance variables are orthogonal, which is unlikely. Therefore, we also ran simulations for correlations between nuisance variables of .1, .3, , .5 and .7. To examine whether it mattered whether the nuisance variables were all correlated to each other, or correlated in clusters, we simulated 2, 3 and 4 clusters of nuisance variables for each of the correlation coefficients. For a correlation of 0, the number of clusters does not matter; and for a correlation of 1, all nuisance variables in each cluster are equal, so in that situation each cluster represents one nuisance variable. This implies that the most advantageous situation for researchers is one where the number of clusters in minimal and the intra-cluster correlation is maximal. The simulations confirm this expectation: increasing intra-nuisance variable correlations results in lower proportions of studies where at least one nuisance variable differs between the groups, although this effect is quite modest. Only with large intra-cluster correlations, the number of clusters starts to matter, with fewer clusters resulting in lower proportions of studies with differing groups. Both of these two effects are illustrated in Figures S1-S6 in the supplementary materials (http://osf.io/BLABLA). This most advantageous situation is represented in Figure 4 and Table 4.
+
+```{r tab.cap="Probabilities of at least one of 2-12 nuisance variables, correlating .7, differing between groups with at least a fifth of a standard deviation (Cohen's d = .2) for sample sizes from 20 to 1000."}
+
+pander(round(dcast(longResults[
+  longResults$d == .2 &
+    longResults$clusters == 1 &
+    longResults$r == 0.7 &
+    (longResults$n %in% c(20, 40, 60, 80, 100, 150, 200, 300, 400, 500, 1000)),
+  c('n', 'confounders', 'p')],
+  confounders ~ n, value.var='p'), 2));
+
+```
+
+```{r fig.cap="Probability of at least one of 2-12 nuisance variables, correlating .7, differing between groups with at least a fifth of a standard deviation (Cohen's d = .2) for sample sizes from 20 to 1000."}
+
+randomSimPlot(longResults[longResults$d == .2  &
+                            longResults$clusters == 1 &
+                            longResults$r == 0.7, ],
+              y = 'p', x = 'n', z = 'confounders',
+              zlab = 'Nuisance\nvariables',
+              reverseZ = TRUE);
+
+```
+
+It is hard to know how many nuisance variables (i.e. potential confounders) can be expected to exist. Optimistically assuming that only two exist, and further assuming that these are correlated .7, means that out of every 10 studies with a total sample size of 100 participants (50 per group), almost half can be expected to be confounded with a Cohen's d of .2 or more for one or both nuisance variables, and even with a total sample size of 200, still one quarter of the studies can be expected to have non-equivalent groups.
+
+
+
+```{r fig.cap="Probability of at least one of 2-1000 nuisance variables, correlating 0, differing between groups with at least a fifth of a standard deviation (Cohen's d = .2) for sample sizes from 20 to 1000."}
+
+randomSimPlot(moreLongResults[moreLongResults$d == .2, ],
+              y = 'p', x = 'n', z = 'confounders',
+              zlab = 'Nuisance\nvariables',
+              reverseZ = TRUE);
+
+```
+
+
+
+```{r fig.cap="Probability of at least one of 2-1000 nuisance variables, correlating 0, differing between groups with at least half a standard deviation (Cohen's d = .5) for sample sizes from 20 to 1000."}
+
+randomSimPlot(moreLongResults[moreLongResults$d == .5, ],
+              y = 'p', x = 'n', z = 'confounders',
+              zlab = 'Nuisance\nvariables',
+              reverseZ = TRUE);
+
+```
+
+
+
+
+```{r}
+
+### APS replications: http://www.psychologicalscience.org/index.php/replication/ongoing-projects
+
+preproducabilityProjectPsychNs <- c(29, 24, 32, 270, 48, 32, 15, 33, 32, 30, 118, 36, 242, 47, 21, 108, 32, 49, 63, 20, 71, 91, 15, 38, 40, 24, 18, 153, 75, 180, 455326, 200, 88, 105, 113, 75, 71, 83, 280, 216, 222, 148, 71, 135, 226, 333, 177, 251, 120, 768703, 70, 141, 50, 150, 140, 51, 304, 76, 61, 1490, 1146, 47, 158, 144, 120, 51, 177, 32, 8, 140, 12, 166, 43, 24, 17, 70, 26, 66, 30, 38, 238, 3597, 58, 5, 125, 88, 78, 120, 12, 263, 318, 19, 126, 8, 16, 72, 95, 48, 51, 22);
+manyLabsNs <- c(84, 120, 84, 95, 96, 102, 90, 174, 113, 112, 277, 146, 98, 85, 1000, 107, 123, 1329, 95, 103, 86, 162, 79, 169, 187, 87, 225, 80, 127, 144, 81, 108, 96, 103, 90, 87);
+allNs <- c(preproducabilityProjectPsychNs, manyLabsNs);
+
+freq(cut(allNs, breaks=c(0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 100000)));
+
+```
+
+
+
+```{r tab.cap="Probabilities of at least one of 2-12 nuisance variables, correlating .7, differing between groups with at least half a standard deviation (Cohen's d = .5) for sample sizes from 20 to 200."}
+
+pander(round(dcast(longResults[
+  longResults$d == .5 &
+    longResults$clusters == 1 &
+    longResults$r == 0.7 &
+    (longResults$n %in% c(20, 40, 60, 80, 100, 120, 140, 160, 180, 200)),
+  c('n', 'confounders', 'p')],
+  confounders ~ n, value.var='p'), 2));
+
+```
+
+```{r fig.cap="Probability of at least one of 2-12 nuisance variables, correlating .7, differing between groups with at least half a standard deviation (Cohen's d = .5) for sample sizes from 20 to 200."}
+
+randomSimPlot(longResults[longResults$d == .5  &
+                            longResults$clusters == 1 &
+                            longResults$r == 0.7, ],
+              y = 'p', x = 'n', z = 'confounders',
+              zlab = 'Nuisance\nvariables',
+              xlim = c(20, 200),
+              xbreaks = c(20, 50, 100, 150, 200),
+              reverseZ = TRUE);
+
+```
+
+```{r echo=TRUE}
+
+  ### Estimates in the discussion
+
+  min(longResults[
+  longResults$confounders == 12 &
+    longResults$clusters == 1 &
+    longResults$r == 0.7 &
+    longResults$d == .5 &
+    longResults$p < .05, 'n']);
+
+  min(longResults[
+  longResults$confounders == 1 &
+    longResults$clusters == 1 &
+    longResults$r == 0 &
+    longResults$d == .2 &
+    longResults$p < .05, 'n']);
+
+  min(longResults[
+  longResults$confounders == 12 &
+    longResults$clusters == 1 &
+    longResults$r == 0.7 &
+    longResults$d == .2 &
+    longResults$p < .05, 'n']);
+
+```
+
+
+```{r echo=FALSE, fig.caption="EXTRA FIGURES, ONLY FOR SUPPLEMENTAL"}
+
+randomSimPlot(longResults[longResults$confounders == 12  &
+                            longResults$clusters == 1 &
+                            longResults$d == .5, ],
+              z = 'r', zlab = 'Correlation', xlim=c(0, 200));
+
+randomSimPlot(longResults[longResults$confounders == 12  &
+                            longResults$r == .3 &
+                            longResults$d == .2, ],
+              z = 'clusters', zlab = 'Clusters', reverseZ = TRUE);
+
+randomSimPlot(longResults[longResults$confounders == 12  &
+                            longResults$r == .5 &
+                            longResults$d == .2, ],
+              z = 'clusters', zlab = 'Clusters', reverseZ = TRUE);
+
+randomSimPlot(longResults[longResults$confounders == 12  &
+                            longResults$r == .7 &
+                            longResults$d == .2, ],
+              z = 'clusters', zlab = 'Clusters', reverseZ = TRUE);
+
+randomizationSampleSizes(nVars=50, d=.5, sampleSizes=seq(20,300,20), samples=100,
+                         progressBar = "none");
+
+randomizationSampleSizes(nVars=100, d=.5, sampleSizes=seq(20,300,20), samples=100,
+                         progressBar = "none");
+
+randomizationSampleSizes(nVars=500, d=.5, sampleSizes=seq(20,300,20), samples=100,
+                         progressBar = "none");
+
+randomizationSampleSizes(nVars=100, d=.2, sampleSizes=seq(250,2000,250), samples=100,
+                         progressBar = "none");
+
+randomizationSampleSizes(nVars=500, d=.2, sampleSizes=seq(250,2000,250), samples=100,
+                         progressBar = "none");
+
+```
+
