@@ -58,6 +58,9 @@ require('pander', quietly = TRUE)
 ### For knitting and accessing knitr functions
 require('knitr', quietly = TRUE);
 
+### For plotting
+require('ggplot2', quietly = TRUE);
+
 ########################################################################
 ### Settings
 ########################################################################
@@ -86,7 +89,7 @@ setTabCapNumbering(table_counter_str = ":Table %s: ");
 
 The results for the simulation with one nuisance variable are shown in Figure 1 and Table 1. As sample sizes increase and effect sizes decrease, the probability of the nuisance variable differing between groups with a given effect size decreases. Even with only 20 participants (10 in each cell), the probability of one group mean being one standard deviation higher than the other group mean is only 4%. However, in one in three studies with a total sample size of 20, one group's mean is half a standard deviation higher than the other group's mean (a 'moderately large' difference). If smaller differences between groups are already considered problematic, the sample size required to constrain the probability of non-equivalent groups rapidly increases.
 
-If a difference between groups of Cohen's d = .2 or larger is considered problematic, even with a total sample size of 150 participants (75 per cell) still about one fifth of the studies (20%) will in fact be quasi-experiments with respect to this nuisance variable. To get the proportion of studies with non-equivalent groups below 10%, at least XXXXXXXXXX participants are required.
+If a difference between groups of Cohen's d = .2 or larger is considered problematic, even with a total sample size of 150 participants (75 per cell) still about one fifth of the studies (20%) will in fact be quasi-experiments with respect to this nuisance variable. To get the proportion of studies with non-equivalent groups below 10%, at least `r pwr.randomizationSuccess(.2, .90, 1)` participants are required.
 
 ```{r fig.cap="Probability of one nuisance variable differing between groups for Cohen's d's from .2, .3, .4 and .5 for sample sizes from 20-500."}
 
@@ -188,7 +191,7 @@ Of course, in most situations, assuming that only one nuisance variable exists i
     geom_vline(xintercept = min(df[df$d.5 <= .05, 'x'])) +
     xlab("Total sample size") +
     ylab("Probability of nonequivalent groups") +
-    ggtitle("Ten potential confounders") +
+    ggtitle("One hundred potential confounders") +
     coord_cartesian(ylim=c(0,1)) +
     scale_x_continuous(breaks=seq(0, 1000, by=100),
                        sec.axis=dup_axis(breaks=c(#min(df[df$d.2 <= .05, 'x']),
