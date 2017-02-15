@@ -125,6 +125,11 @@ If a difference between groups of Cohen's d = .2 or larger is considered problem
                                          min(df[df$d.5 <= .05, 'x'])))) +
     theme_bw();
 
+ggsave(file.path(outputPath, "figure 1 - nonequivalence probability for 1 nuisance variable.png"),
+       width = 14,
+       height = 8,
+       type='cairo-png');
+
 ```
 
 Of course, in most situations, assuming that only one nuisance variable exists is almost as naive as assuming that non nuisance variables exist. Therefore, we also computed these probabilities as a function of the number of nuisance variables. For a Cohen's d of .5, these probabilities are shown in Figure 2 and Table 2, and for a Cohen's d of .2, in Figure 3 and Table 3.
@@ -163,6 +168,11 @@ Of course, in most situations, assuming that only one nuisance variable exists i
                                          min(df[df$d.5 <= .05, 'x'])))) +
     theme_bw();
 
+ggsave(file.path(outputPath, "figure 2 - nonequivalence probability for 10 nuisance variables.png"),
+       width = 14,
+       height = 8,
+       type='cairo-png');
+
 ```
 
 
@@ -200,4 +210,121 @@ Of course, in most situations, assuming that only one nuisance variable exists i
                                          min(df[df$d.5 <= .05, 'x'])))) +
     theme_bw();
 
+ggsave(file.path(outputPath, "figure 3 - nonequivalence probability for 100 nuisance variables.png"),
+       width = 14,
+       height = 8,
+       type='cairo-png');
+
+
 ```
+
+
+```{r}
+
+  if (!file.exists(file.path(basePath, 'rpp_data.csv'))) {
+    stop("The file 'rpp_data.csv' is not available. Please visit https://osf.io/fgjvw and download it (see https://osf.io/bhcsf for the codebook).");
+  }
+
+  ### Import data
+  dat <- getData(file.path(basePath, 'rpp_data.csv'));
+  cat("Read", nrow(dat), "studies.");
+  
+  ### Select two-cell designs
+  dat <- dat[grep('^(t\\()|(F\\(1)', dat$Test.statistic..O.), ];
+  cat("Selected", nrow(dat), "two-cell designs.");
+  
+  ### Convenient names for the sample size.
+  dat$originalSampleSize <- as.numeric(dat$N..O.);
+  dat$replicationSampleSize <- as.numeric(dat$N..R.);
+
+  ### Remove missing values
+  dat <- dat[, c('originalSampleSize', 'replicationSampleSize')];
+  dat <- na.omit(dat);
+  cat("Retained samples after removing missing values:", nrow(dat));
+  
+  ### Remove huge sample sizes
+  cat("Removing", sum(dat$replicationSampleSize >= 1000),
+      "samples of over 1000 participants,");
+  dat <- dat[dat$replicationSampleSize < 1000 ,];
+
+  dat$originalProbNonequivalence_d.2_1nvar <- 1-pdMild(.2, dat$originalSampleSize)^1;
+  dat$originalProbNonequivalence_d.2_10nvar <- 1-pdMild(.2, dat$originalSampleSize)^10;
+  dat$originalProbNonequivalence_d.2_100nvar <- 1-pdMild(.2, dat$originalSampleSize)^100;
+  dat$originalProbNonequivalence_d.5_1nvar <- 1-pdMild(.5, dat$originalSampleSize)^1;
+  dat$originalProbNonequivalence_d.5_10nvar <- 1-pdMild(.5, dat$originalSampleSize)^10;
+  dat$originalProbNonequivalence_d.5_100nvar <- 1-pdMild(.5, dat$originalSampleSize)^100;
+
+  dat$replicationProbNonequivalence_d.2_1nvar <- 1-pdMild(.2, dat$replicationSampleSize)^1;
+  dat$replicationProbNonequivalence_d.2_10nvar <- 1-pdMild(.2, dat$replicationSampleSize)^10;
+  dat$replicationProbNonequivalence_d.2_100nvar <- 1-pdMild(.2, dat$replicationSampleSize)^100;
+  dat$replicationProbNonequivalence_d.5_1nvar <- 1-pdMild(.5, dat$replicationSampleSize)^1;
+  dat$replicationProbNonequivalence_d.5_10nvar <- 1-pdMild(.5, dat$replicationSampleSize)^10;
+  dat$replicationProbNonequivalence_d.5_100nvar <- 1-pdMild(.5, dat$replicationSampleSize)^100;
+
+  dat[, grep('ProbNonequivalence', names(dat))] <- lapply(dat[, grep('ProbNonequivalence', names(dat))],
+                                                          function(x) return(100*x));
+  
+  longDatOriginal <- melt(c(dat[, grep('originalProbNonequivalence', names(dat))]));
+  names(longDatOriginal) <- c('probability', 'parameters');
+  longDatOriginal$n <- rep(dat$originalSampleSize, nrow(longDatOriginal)/ nrow(dat));
+  longDatOriginal$d <- gsub('originalProbNonequivalence_d(\\..)_.*',
+                            'd = \\1', longDatOriginal$parameters);
+  longDatOriginal$nVar <- gsub('originalProbNonequivalence_d.._(.*)nvar',
+                               'nVar = \\1', longDatOriginal$parameters);
+
+  longDatReplication <- melt(c(dat[, grep('replicationProbNonequivalence', names(dat))]));
+  names(longDatReplication) <- c('probability', 'parameters');
+  longDatReplication$n <- rep(dat$replicationSampleSize, nrow(longDatReplication)/ nrow(dat));
+  longDatReplication$d <- gsub('replicationProbNonequivalence_d(\\..)_.*',
+                            'd = \\1', longDatReplication$parameters);
+  longDatReplication$nVar <- gsub('replicationProbNonequivalence_d.._(.*)nvar',
+                               'nVar = \\1', longDatReplication$parameters);
+  
+  ggplot(longDatOriginal, aes(x = nVar,
+                              y = probability,
+                              group = d,
+                              shape = d,
+                              color = n)) +
+    geom_point(size=5, alpha=.75,
+               position=position_jitterdodge(jitter.width = .2,
+                                             jitter.height = 2,
+                                             dodge.width = .7)) +
+    theme_bw(base_size = 20) +
+    scale_color_continuous(low="#BBBBBB", high="#000000") +
+    scale_x_discrete(labels=c("1",
+                              "10",
+                              "100")) +
+    xlab("Number of nuisance variables") +
+    ylab("Probability of nonequivalent groups\nfor at least one nuisance variable");
+
+ggsave(file.path(outputPath, "figure 4 - probability of nonequivalence for original studies.png"), 
+       width = 14,
+       height = 10,
+       type='cairo-png');
+ 
+  ggplot(longDatReplication, aes(x = nVar,
+                                 y = probability,
+                                 group = d,
+                                 shape = d,
+                                 color = n)) +
+    geom_point(size=5, alpha=.75,
+               position=position_jitterdodge(jitter.width = .2,
+                                             jitter.height = 2,
+                                             dodge.width = .7)) +
+    theme_bw(base_size = 20) +
+    scale_color_continuous(low="#BBBBBB", high="#000000") +
+    scale_x_discrete(labels=c("1",
+                              "10",
+                              "100")) +
+    xlab("Number of nuisance variables") +
+    ylab("Probability of nonequivalent groups\nfor at least one nuisance variable");
+  
+ggsave(file.path(outputPath, "figure 5 - probability of nonequivalence for replications.png"), 
+       width = 14,
+       height = 10,
+       type='cairo-png');
+  
+  
+```
+
+
