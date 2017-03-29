@@ -87,17 +87,17 @@ setTabCapNumbering(table_counter_str = ":Table %s: ");
 
 ```
 
-The results for the simulation with one nuisance variable are shown in Figure 1 and Table 1. As sample sizes increase and effect sizes decrease, the probability of the nuisance variable differing between groups with a given effect size decreases. Even with only 20 participants (10 in each cell), the probability of one group mean being one standard deviation higher than the other group mean is only 4%. However, in one in three studies with a total sample size of 20, one group's mean is half a standard deviation higher than the other group's mean (a 'moderately large' difference). If smaller differences between groups are already considered problematic, the sample size required to constrain the probability of non-equivalent groups rapidly increases.
+The results for a situation with only one nuisance variable are shown in Figure 1 and Table 1. As sample sizes increase and effect sizes decrease, the probability of the nuisance variable differing between groups with a given effect size decreases. Even with only 20 participants (10 in each cell), the probability of one group mean being one standard deviation higher than the other group mean is only 4%. However, in one in three studies with a total sample size of 20, one group's mean is half a standard deviation higher than the other group's mean (a 'moderately large' difference). If smaller differences between groups are already considered problematic, the sample size required to constrain the probability of non-equivalent groups rapidly increases.
 
 If a difference between groups of Cohen's d = .2 or larger is considered problematic, even with a total sample size of 150 participants (75 per cell) still about one fifth of the studies (20%) will in fact be quasi-experiments with respect to this nuisance variable. To get the proportion of studies with non-equivalent groups below 10%, at least `r pwr.randomizationSuccess(.2, .90, 1)` participants are required.
 
-```{r fig.cap="Probability of one nuisance variable differing between groups for Cohen's d's from .2, .3, .4 and .5 for sample sizes from 20-500."}
+```{r fig.cap="Probability of one nuisance variable differing between groups for Cohen's d's from .2, .3, .4 and .5 for sample sizes from 20-500.", tab.cap="Required sample size to achieve 80%, 90%, 95%, and 99% likelihood of randomization success, assuming only one nuisance variable exists, and With non-equivalence defined as group differences exceeding Cohen's d = .1, .2, .3, .4 and .5." }
 
   df <- data.frame(x = seq(10, 500, 1),
-                   d.2 = pdExtreme(.2, seq(10, 500, 1)),
-                   d.3 = pdExtreme(.3, seq(10, 500, 1)),
-                   d.4 = pdExtreme(.4, seq(10, 500, 1)),
-                   d.5 = pdExtreme(.5, seq(10, 500, 1)));
+                   d.2 = 1 - prob.randomizationSuccess(d=.2, n=seq(10, 500, 1), nNuisanceVars = 1),
+                   d.3 = 1 - prob.randomizationSuccess(d=.3, n=seq(10, 500, 1), nNuisanceVars = 1),
+                   d.4 = 1 - prob.randomizationSuccess(d=.4, n=seq(10, 500, 1), nNuisanceVars = 1),
+                   d.5 = 1 - prob.randomizationSuccess(d=.5, n=seq(10, 500, 1), nNuisanceVars = 1));
 
   ggplot(df, aes(x=x)) +
     geom_ribbon(aes(ymax = 1, ymin=d.2), fill="#008800", alpha=.33) +
@@ -123,7 +123,7 @@ If a difference between groups of Cohen's d = .2 or larger is considered problem
                                          min(df[df$d.3 <= .05, 'x']),
                                          min(df[df$d.4 <= .05, 'x']),
                                          min(df[df$d.5 <= .05, 'x'])))) +
-    theme_bw();
+    theme_bw(base_size = 16);
 
 ggsave(file.path(outputPath, "figure 1 - nonequivalence probability for 1 nuisance variable.png"),
        width = 14,
@@ -132,15 +132,15 @@ ggsave(file.path(outputPath, "figure 1 - nonequivalence probability for 1 nuisan
 
 ```
 
-Of course, in most situations, assuming that only one nuisance variable exists is almost as naive as assuming that non nuisance variables exist. Therefore, we also computed these probabilities as a function of the number of nuisance variables. For a Cohen's d of .5, these probabilities are shown in Figure 2 and Table 2, and for a Cohen's d of .2, in Figure 3 and Table 3.
+Of course, in most situations, assuming that only one nuisance variable exists is almost as naive as assuming that no nuisance variables exist. Therefore, we also computed these probabilities as a function of the number of nuisance variables. For a Cohen's d of .5, these probabilities are shown in Figure 2 and Table 2, and for a Cohen's d of .2, in Figure 3 and Table 3.
 
 ```{r fig.cap="Probability of ten nuisance variables differing between groups for Cohen's d's from .2, .3, .4 and .5 for sample sizes from 20-1000."}
 
   df <- data.frame(x = seq(10, 1000, 1),
-                   d.2 = 1 - pdMild(.2, seq(10, 1000, 1))^10,
-                   d.3 = 1 - pdMild(.3, seq(10, 1000, 1))^10,
-                   d.4 = 1 - pdMild(.4, seq(10, 1000, 1))^10,
-                   d.5 = 1 - pdMild(.5, seq(10, 1000, 1))^10);
+                   d.2 = 1 - prob.randomizationSuccess(d=.2, n=seq(10, 1000, 1), nNuisanceVars = 10),
+                   d.3 = 1 - prob.randomizationSuccess(d=.3, n=seq(10, 1000, 1), nNuisanceVars = 10),
+                   d.4 = 1 - prob.randomizationSuccess(d=.4, n=seq(10, 1000, 1), nNuisanceVars = 10),
+                   d.5 = 1 - prob.randomizationSuccess(d=.5, n=seq(10, 1000, 1), nNuisanceVars = 10));
 
   ggplot(df, aes(x=x)) +
     geom_ribbon(aes(ymax = 1, ymin=d.2), fill="#008800", alpha=.33) +
@@ -166,7 +166,7 @@ Of course, in most situations, assuming that only one nuisance variable exists i
                                          min(df[df$d.3 <= .05, 'x']),
                                          min(df[df$d.4 <= .05, 'x']),
                                          min(df[df$d.5 <= .05, 'x'])))) +
-    theme_bw();
+    theme_bw(base_size = 16);
 
 ggsave(file.path(outputPath, "figure 2 - nonequivalence probability for 10 nuisance variables.png"),
        width = 14,
@@ -179,10 +179,10 @@ ggsave(file.path(outputPath, "figure 2 - nonequivalence probability for 10 nuisa
 ```{r fig.cap="Probability of one hundred nuisance variables differing between groups for Cohen's d's from .2, .3, .4 and .5 for sample sizes from 20-1000."}
 
   df <- data.frame(x = seq(10, 1000, 1),
-                   d.2 = 1 - pdMild(.2, seq(10, 1000, 1))^100,
-                   d.3 = 1 - pdMild(.3, seq(10, 1000, 1))^100,
-                   d.4 = 1 - pdMild(.4, seq(10, 1000, 1))^100,
-                   d.5 = 1 - pdMild(.5, seq(10, 1000, 1))^100);
+                   d.2 = 1 - prob.randomizationSuccess(d=.2, n=seq(10, 1000, 1), nNuisanceVars = 100),
+                   d.3 = 1 - prob.randomizationSuccess(d=.3, n=seq(10, 1000, 1), nNuisanceVars = 100),
+                   d.4 = 1 - prob.randomizationSuccess(d=.4, n=seq(10, 1000, 1), nNuisanceVars = 100),
+                   d.5 = 1 - prob.randomizationSuccess(d=.5, n=seq(10, 1000, 1), nNuisanceVars = 100));
 
   ggplot(df, aes(x=x)) +
     geom_ribbon(aes(ymax = 1, ymin=d.2), fill="#008800", alpha=.33) +
@@ -208,7 +208,7 @@ ggsave(file.path(outputPath, "figure 2 - nonequivalence probability for 10 nuisa
                                          min(df[df$d.3 <= .05, 'x']),
                                          min(df[df$d.4 <= .05, 'x']),
                                          min(df[df$d.5 <= .05, 'x'])))) +
-    theme_bw();
+    theme_bw(base_size=16);
 
 ggsave(file.path(outputPath, "figure 3 - nonequivalence probability for 100 nuisance variables.png"),
        width = 14,
@@ -247,19 +247,31 @@ ggsave(file.path(outputPath, "figure 3 - nonequivalence probability for 100 nuis
       "samples of over 1000 participants,");
   dat <- dat[dat$replicationSampleSize < 1000 ,];
 
-  dat$originalProbNonequivalence_d.2_1nvar <- 1-pdMild(.2, dat$originalSampleSize)^1;
-  dat$originalProbNonequivalence_d.2_10nvar <- 1-pdMild(.2, dat$originalSampleSize)^10;
-  dat$originalProbNonequivalence_d.2_100nvar <- 1-pdMild(.2, dat$originalSampleSize)^100;
-  dat$originalProbNonequivalence_d.5_1nvar <- 1-pdMild(.5, dat$originalSampleSize)^1;
-  dat$originalProbNonequivalence_d.5_10nvar <- 1-pdMild(.5, dat$originalSampleSize)^10;
-  dat$originalProbNonequivalence_d.5_100nvar <- 1-pdMild(.5, dat$originalSampleSize)^100;
+  dat$originalProbNonequivalence_d.2_1nvar <-
+    1 - prob.randomizationSuccess(n = dat$originalSampleSize, dNonequivalence = .2, nNuisanceVars = 1);
+  dat$originalProbNonequivalence_d.2_10nvar <-
+    1 - prob.randomizationSuccess(n = dat$originalSampleSize, dNonequivalence = .2, nNuisanceVars = 10);
+  dat$originalProbNonequivalence_d.2_100nvar <-
+    1 - prob.randomizationSuccess(n = dat$originalSampleSize, dNonequivalence = .2, nNuisanceVars = 100);
+  dat$originalProbNonequivalence_d.5_1nvar <-
+    1 - prob.randomizationSuccess(n = dat$originalSampleSize, dNonequivalence = .5, nNuisanceVars = 1);
+  dat$originalProbNonequivalence_d.5_10nvar <-
+    1 - prob.randomizationSuccess(n = dat$originalSampleSize, dNonequivalence = .5, nNuisanceVars = 10);
+  dat$originalProbNonequivalence_d.5_100nvar <-
+    1 - prob.randomizationSuccess(n = dat$originalSampleSize, dNonequivalence = .5, nNuisanceVars = 100);
 
-  dat$replicationProbNonequivalence_d.2_1nvar <- 1-pdMild(.2, dat$replicationSampleSize)^1;
-  dat$replicationProbNonequivalence_d.2_10nvar <- 1-pdMild(.2, dat$replicationSampleSize)^10;
-  dat$replicationProbNonequivalence_d.2_100nvar <- 1-pdMild(.2, dat$replicationSampleSize)^100;
-  dat$replicationProbNonequivalence_d.5_1nvar <- 1-pdMild(.5, dat$replicationSampleSize)^1;
-  dat$replicationProbNonequivalence_d.5_10nvar <- 1-pdMild(.5, dat$replicationSampleSize)^10;
-  dat$replicationProbNonequivalence_d.5_100nvar <- 1-pdMild(.5, dat$replicationSampleSize)^100;
+  dat$replicationProbNonequivalence_d.2_1nvar <-
+    1 - prob.randomizationSuccess(n = dat$replicationSampleSize, dNonequivalence = .2, nNuisanceVars = 1);
+  dat$replicationProbNonequivalence_d.2_10nvar <-
+    1 - prob.randomizationSuccess(n = dat$replicationSampleSize, dNonequivalence = .2, nNuisanceVars = 10);
+  dat$replicationProbNonequivalence_d.2_100nvar <-
+    1 - prob.randomizationSuccess(n = dat$replicationSampleSize, dNonequivalence = .2, nNuisanceVars = 100);
+  dat$replicationProbNonequivalence_d.5_1nvar <-
+    1 - prob.randomizationSuccess(n = dat$replicationSampleSize, dNonequivalence = .5, nNuisanceVars = 1);
+  dat$replicationProbNonequivalence_d.5_10nvar <-
+    1 - prob.randomizationSuccess(n = dat$replicationSampleSize, dNonequivalence = .5, nNuisanceVars = 10);
+  dat$replicationProbNonequivalence_d.5_100nvar <-
+    1 - prob.randomizationSuccess(n = dat$replicationSampleSize, dNonequivalence = .5, nNuisanceVars = 100);
 
   dat[, grep('ProbNonequivalence', names(dat))] <- lapply(dat[, grep('ProbNonequivalence', names(dat))],
                                                           function(x) return(100*x));
