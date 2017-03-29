@@ -196,7 +196,7 @@ ggsave(file.path(outputPath, "figure 3 - non-equivalence probability for 100 nui
 
 ```
 
-```{r tab.cap="Required sample size to achieve 99%, 95%, 90%, and 80% likelihood of randomization success, assuming one, ten, or a hundred nuisance variables exists, and With non-equivalence defined as group differences exceeding Cohen's d = .1, .2, .3, .4 and .5." }
+```{r tab.cap="Required sample size to achieve 99%, 95%, 90%, and 80% likelihood of randomization success, with non-equivalence defined as group differences exceeding Cohen's d = .1, .2, .3, .4 and .5, and assuming one, ten, or a hundred nuisance variables exist." }
 
   tableDf <- pwr.randomizationSuccess(d=seq(.1, .5, .1),
                                       nNuisanceVars = c(1, 10, 100),
@@ -216,6 +216,10 @@ ggsave(file.path(outputPath, "figure 3 - non-equivalence probability for 100 nui
                                           " nuisance variable",
                                           c("", "s", "s"), "**");
   pander(table1, missing="");
+
+  write.csv(table1,
+            file.path(outputPath, "table 1.csv"),
+            na="");
 
 ```
 
