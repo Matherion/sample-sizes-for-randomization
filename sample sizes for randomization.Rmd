@@ -61,16 +61,13 @@ knitr::opts_chunk$set(dev="png",
 knitr::opts_chunk$set(fig.width=5);
 knitr::opts_chunk$set(fig.height=5);
 knitr::opts_chunk$set(cache=TRUE);
-knitr::opts_knit$set(eval.after = 'fig.cap');
 
 options(scipen=100);
 options(figure_counter = TRUE);
 options(table_counter = TRUE);
 
-setFigCapNumbering(figure_counter_str = "Figure %s: ",
-                   figureClass = "caption",
-                   figureInlineStyle = NULL);
-setTabCapNumbering(table_counter_str = ":Table %s: ");
+setFigCapNumbering();
+setTabCapNumbering();
 
 ```
 
