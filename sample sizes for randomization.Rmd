@@ -91,7 +91,7 @@ The results for a situation with only one nuisance variable are shown in Figure 
 
 If a difference between groups of Cohen's d = .2 or larger is considered problematic, even with a total sample size of 150 participants (75 per cell) still about one fifth of the studies (20%) will in fact be quasi-experiments with respect to this nuisance variable. To get the proportion of studies with non-equivalent groups below 10%, at least `r pwr.randomizationSuccess(.2, .90, 1)` participants are required.
 
-```{r fig.cap="Probability of one nuisance variable differing between groups for Cohen's d's from .2, .3, .4 and .5 for sample sizes from 20-500.", tab.cap="Required sample size to achieve 80%, 90%, 95%, and 99% likelihood of randomization success, assuming only one nuisance variable exists, and With non-equivalence defined as group differences exceeding Cohen's d = .1, .2, .3, .4 and .5." }
+```{r fig.cap="Probability of one nuisance variable differing between groups for Cohen's d's from .2, .3, .4 and .5 for sample sizes from 20-500." }
 
   df <- data.frame(x = seq(10, 500, 1),
                    d.2 = 1 - prob.randomizationSuccess(d=.2, n=seq(10, 500, 1), nNuisanceVars = 1),
@@ -218,6 +218,28 @@ ggsave(file.path(outputPath, "figure 3 - nonequivalence probability for 100 nuis
 
 ```
 
+```{r tab.cap="Required sample size to achieve 99%, 95%, 90%, and 80% likelihood of randomization success, assuming one, ten, or a hundred nuisance variables exists, and With non-equivalence defined as group differences exceeding Cohen's d = .1, .2, .3, .4 and .5." }
+
+  tableDf <- pwr.randomizationSuccess(d=seq(.1, .5, .1),
+                                      nNuisanceVars = c(1, 10, 100),
+                                      pRandomizationSuccess = c(.99, .95, .9, .8));
+
+  table1 <- rbind(rep(NA, 5),
+                  tableDf['Nuisance var: 1', , ],
+                  rep(NA, 5),
+                  tableDf['Nuisance var: 10', , ],
+                  rep(NA, 5),
+                  tableDf['Nuisance var: 100', , ]);
+
+  rownames(table1) <- gsub("Equival. prob:", "  P(eq):", rownames(table1));
+  colnames(table1) <- gsub("Nonequival. at: d=", "d =", colnames(table1));
+
+  rownames(table1)[c(1, 6, 11)] <- paste0("**", c(1, 10, 100),
+                                          " nuisance variable",
+                                          c("", "s", "s"), "**");
+  pander(table1, missing="");
+
+```
 
 ```{r}
 
