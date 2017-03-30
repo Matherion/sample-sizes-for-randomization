@@ -45,8 +45,9 @@ outputPath <- basePath;
 .libPaths(c(.libPaths(), "C:/Program Files/Microsoft/MRO-3.3.2/library"));
 
 require('userfriendlyscience', quietly = TRUE);
-require('pander', quietly = TRUE)
-require('ggplot2', quietly = TRUE);
+safeRequire('pander');
+safeRequire('ggplot2');
+safeRequire('reshape2');
 
 ########################################################################
 ### Settings
@@ -71,24 +72,27 @@ setTabCapNumbering();
 
 ```
 
-```{r fig.cap="Probability of one nuisance variable differing between groups for Cohen's d's from .2, .3, .4 and .5 for sample sizes from 20-500." }
+```{r fig.cap="Probability of one nuisance variable differing between groups with Cohen's d values of at most 0.1 (light green area), 0.2 (green area), 0.3 (yellow area), 0.4 (orange area), at most 0.5 (light red area) and more than 0.5 (red area) for sample sizes from 20-1000." }
 
-  df <- data.frame(x = seq(10, 500, 1),
-                   d.2 = 1 - prob.randomizationSuccess(d=.2, n=seq(10, 500, 1), nNuisanceVars = 1),
-                   d.3 = 1 - prob.randomizationSuccess(d=.3, n=seq(10, 500, 1), nNuisanceVars = 1),
-                   d.4 = 1 - prob.randomizationSuccess(d=.4, n=seq(10, 500, 1), nNuisanceVars = 1),
-                   d.5 = 1 - prob.randomizationSuccess(d=.5, n=seq(10, 500, 1), nNuisanceVars = 1));
+  df <- data.frame(x = seq(10, 1000, 1),
+                   d.1 = 1 - prob.randomizationSuccess(d=.1, n=seq(10, 1000, 1), nNuisanceVars = 1),
+                   d.2 = 1 - prob.randomizationSuccess(d=.2, n=seq(10, 1000, 1), nNuisanceVars = 1),
+                   d.3 = 1 - prob.randomizationSuccess(d=.3, n=seq(10, 1000, 1), nNuisanceVars = 1),
+                   d.4 = 1 - prob.randomizationSuccess(d=.4, n=seq(10, 1000, 1), nNuisanceVars = 1),
+                   d.5 = 1 - prob.randomizationSuccess(d=.5, n=seq(10, 1000, 1), nNuisanceVars = 1));
 
   ggplot(df, aes(x=x)) +
-    geom_ribbon(aes(ymax = 1, ymin=d.2), fill="#008800", alpha=.33) +
-    geom_ribbon(aes(ymax = d.2, ymin=d.3), fill="#FFAA00", alpha=.33) +
-    geom_ribbon(aes(ymax = d.3, ymin=d.4), fill="#FF9900", alpha=.33) +
-    geom_ribbon(aes(ymax = d.4, ymin=d.5), fill="#FF6600", alpha=.33) +
-    geom_ribbon(aes(ymax = d.5, ymin=0), fill="#FF3300", alpha=.33) +
-    geom_line(aes(y=d.2), color="#FFAA00", size=1) +
-    geom_line(aes(y=d.3), color="#FF9900", size=1) +
-    geom_line(aes(y=d.4), color="#FF6600", size=1) +
-    geom_line(aes(y=d.5), color="#FF3300", size=1) +
+    geom_ribbon(aes(ymax = 1, ymin=d.1), fill="#008800", alpha=.2) +
+    geom_ribbon(aes(ymax = d.1, ymin=d.2), fill="#008800", alpha=.33) +
+    geom_ribbon(aes(ymax = d.2, ymin=d.3), fill="#FFBF00", alpha=.33) +
+    geom_ribbon(aes(ymax = d.3, ymin=d.4), fill="#FF8F00", alpha=.33) +
+    geom_ribbon(aes(ymax = d.4, ymin=d.5), fill="#FF4F00", alpha=.33) +
+    geom_ribbon(aes(ymax = d.5, ymin=0), fill="#FF0F00", alpha=.33) +
+    geom_line(aes(y=d.1), color="#008800", size=1) +
+    geom_line(aes(y=d.2), color="#FFBF00", size=1) +
+    geom_line(aes(y=d.3), color="#FF8F00", size=1) +
+    geom_line(aes(y=d.4), color="#FF4F00", size=1) +
+    geom_line(aes(y=d.5), color="#FF0F00", size=1) +
     geom_hline(yintercept = .05) +
     geom_vline(xintercept = min(df[df$d.2 <= .05, 'x'])) +
     geom_vline(xintercept = min(df[df$d.3 <= .05, 'x'])) +
@@ -98,11 +102,11 @@ setTabCapNumbering();
     ylab("Probability of non-equivalent groups") +
     ggtitle("One nuisance variable") +
     coord_cartesian(ylim=c(0,1)) +
-    scale_x_continuous(breaks=seq(0, 500, by=100),
+    scale_x_continuous(breaks=seq(0, 1000, by=100),
                        sec.axis=dup_axis(breaks=c(min(df[df$d.2 <= .05, 'x']),
-                                         min(df[df$d.3 <= .05, 'x']),
-                                         min(df[df$d.4 <= .05, 'x']),
-                                         min(df[df$d.5 <= .05, 'x'])))) +
+                                                  min(df[df$d.3 <= .05, 'x']),
+                                                  min(df[df$d.4 <= .05, 'x']),
+                                                  min(df[df$d.5 <= .05, 'x'])))) +
     theme_bw(base_size = 16);
 
 ggsave(file.path(outputPath, "figure 1 - non-equivalence probability for 1 nuisance variable.png"),
@@ -112,24 +116,27 @@ ggsave(file.path(outputPath, "figure 1 - non-equivalence probability for 1 nuisa
 
 ```
 
-```{r fig.cap="Probability of ten nuisance variables differing between groups for Cohen's d's from .2, .3, .4 and .5 for sample sizes from 20-1000."}
+```{r fig.cap="Probability of one or more of ten nuisance variables differing between groups with Cohen's d values of at most 0.1 (light green area), 0.2 (green area), 0.3 (yellow area), 0.4 (orange area), at most 0.5 (light red area) and more than 0.5 (red area) for sample sizes from 20-1000."}
 
   df <- data.frame(x = seq(10, 1000, 1),
+                   d.1 = 1 - prob.randomizationSuccess(d=.1, n=seq(10, 1000, 1), nNuisanceVars = 10),
                    d.2 = 1 - prob.randomizationSuccess(d=.2, n=seq(10, 1000, 1), nNuisanceVars = 10),
                    d.3 = 1 - prob.randomizationSuccess(d=.3, n=seq(10, 1000, 1), nNuisanceVars = 10),
                    d.4 = 1 - prob.randomizationSuccess(d=.4, n=seq(10, 1000, 1), nNuisanceVars = 10),
                    d.5 = 1 - prob.randomizationSuccess(d=.5, n=seq(10, 1000, 1), nNuisanceVars = 10));
 
   ggplot(df, aes(x=x)) +
-    geom_ribbon(aes(ymax = 1, ymin=d.2), fill="#008800", alpha=.33) +
-    geom_ribbon(aes(ymax = d.2, ymin=d.3), fill="#FFAA00", alpha=.33) +
-    geom_ribbon(aes(ymax = d.3, ymin=d.4), fill="#FF9900", alpha=.33) +
-    geom_ribbon(aes(ymax = d.4, ymin=d.5), fill="#FF6600", alpha=.33) +
-    geom_ribbon(aes(ymax = d.5, ymin=0), fill="#FF3300", alpha=.33) +
-    geom_line(aes(y=d.2), color="#FFAA00", size=1) +
-    geom_line(aes(y=d.3), color="#FF9900", size=1) +
-    geom_line(aes(y=d.4), color="#FF6600", size=1) +
-    geom_line(aes(y=d.5), color="#FF3300", size=1) +
+    geom_ribbon(aes(ymax = 1, ymin=d.1), fill="#008800", alpha=.2) +
+    geom_ribbon(aes(ymax = d.1, ymin=d.2), fill="#008800", alpha=.33) +
+    geom_ribbon(aes(ymax = d.2, ymin=d.3), fill="#FFBF00", alpha=.33) +
+    geom_ribbon(aes(ymax = d.3, ymin=d.4), fill="#FF8F00", alpha=.33) +
+    geom_ribbon(aes(ymax = d.4, ymin=d.5), fill="#FF4F00", alpha=.33) +
+    geom_ribbon(aes(ymax = d.5, ymin=0), fill="#FF0F00", alpha=.33) +
+    geom_line(aes(y=d.1), color="#008800", size=1) +
+    geom_line(aes(y=d.2), color="#FFBF00", size=1) +
+    geom_line(aes(y=d.3), color="#FF8F00", size=1) +
+    geom_line(aes(y=d.4), color="#FF4F00", size=1) +
+    geom_line(aes(y=d.5), color="#FF0F00", size=1) +
     geom_hline(yintercept = .05) +
     geom_vline(xintercept = min(df[df$d.2 <= .05, 'x'])) +
     geom_vline(xintercept = min(df[df$d.3 <= .05, 'x'])) +
@@ -137,13 +144,13 @@ ggsave(file.path(outputPath, "figure 1 - non-equivalence probability for 1 nuisa
     geom_vline(xintercept = min(df[df$d.5 <= .05, 'x'])) +
     xlab("Total sample size") +
     ylab("Probability of non-equivalent groups") +
-    ggtitle("Ten nuisance variabes") +
+    ggtitle("Ten nuisance variables") +
     coord_cartesian(ylim=c(0,1)) +
     scale_x_continuous(breaks=seq(0, 1000, by=100),
                        sec.axis=dup_axis(breaks=c(min(df[df$d.2 <= .05, 'x']),
-                                         min(df[df$d.3 <= .05, 'x']),
-                                         min(df[df$d.4 <= .05, 'x']),
-                                         min(df[df$d.5 <= .05, 'x'])))) +
+                                                  min(df[df$d.3 <= .05, 'x']),
+                                                  min(df[df$d.4 <= .05, 'x']),
+                                                  min(df[df$d.5 <= .05, 'x'])))) +
     theme_bw(base_size = 16);
 
 ggsave(file.path(outputPath, "figure 2 - non-equivalence probability for 10 nuisance variables.png"),
@@ -154,39 +161,40 @@ ggsave(file.path(outputPath, "figure 2 - non-equivalence probability for 10 nuis
 ```
 
 
-```{r fig.cap="Probability of one hundred nuisance variables differing between groups for Cohen's d's from .2, .3, .4 and .5 for sample sizes from 20-1000."}
+```{r fig.cap="Probability of one or more of one hundred nuisance variables differing between groups with Cohen's d values of at most 0.1 (light green area), 0.2 (green area), 0.3 (yellow area), 0.4 (orange area), at most 0.5 (light red area) and more than 0.5 (red area) for sample sizes from 20-1000."}
 
   df <- data.frame(x = seq(10, 1000, 1),
+                   d.1 = 1 - prob.randomizationSuccess(d=.1, n=seq(10, 1000, 1), nNuisanceVars = 100),
                    d.2 = 1 - prob.randomizationSuccess(d=.2, n=seq(10, 1000, 1), nNuisanceVars = 100),
                    d.3 = 1 - prob.randomizationSuccess(d=.3, n=seq(10, 1000, 1), nNuisanceVars = 100),
                    d.4 = 1 - prob.randomizationSuccess(d=.4, n=seq(10, 1000, 1), nNuisanceVars = 100),
                    d.5 = 1 - prob.randomizationSuccess(d=.5, n=seq(10, 1000, 1), nNuisanceVars = 100));
 
   ggplot(df, aes(x=x)) +
-    geom_ribbon(aes(ymax = 1, ymin=d.2), fill="#008800", alpha=.33) +
-    geom_ribbon(aes(ymax = d.2, ymin=d.3), fill="#FFAA00", alpha=.33) +
-    geom_ribbon(aes(ymax = d.3, ymin=d.4), fill="#FF9900", alpha=.33) +
-    geom_ribbon(aes(ymax = d.4, ymin=d.5), fill="#FF6600", alpha=.33) +
-    geom_ribbon(aes(ymax = d.5, ymin=0), fill="#FF3300", alpha=.33) +
-    geom_line(aes(y=d.2), color="#FFAA00", size=1) +
-    geom_line(aes(y=d.3), color="#FF9900", size=1) +
-    geom_line(aes(y=d.4), color="#FF6600", size=1) +
-    geom_line(aes(y=d.5), color="#FF3300", size=1) +
+    geom_ribbon(aes(ymax = 1, ymin=d.1), fill="#008800", alpha=.2) +
+    geom_ribbon(aes(ymax = d.1, ymin=d.2), fill="#008800", alpha=.33) +
+    geom_ribbon(aes(ymax = d.2, ymin=d.3), fill="#FFBF00", alpha=.33) +
+    geom_ribbon(aes(ymax = d.3, ymin=d.4), fill="#FF8F00", alpha=.33) +
+    geom_ribbon(aes(ymax = d.4, ymin=d.5), fill="#FF4F00", alpha=.33) +
+    geom_ribbon(aes(ymax = d.5, ymin=0), fill="#FF0F00", alpha=.33) +
+    geom_line(aes(y=d.1), color="#008800", size=1) +
+    geom_line(aes(y=d.2), color="#FFBF00", size=1) +
+    geom_line(aes(y=d.3), color="#FF8F00", size=1) +
+    geom_line(aes(y=d.4), color="#FF4F00", size=1) +
+    geom_line(aes(y=d.5), color="#FF0F00", size=1) +
     geom_hline(yintercept = .05) +
-    #geom_vline(xintercept = min(df[df$d.2 <= .05, 'x'])) +
     geom_vline(xintercept = min(df[df$d.3 <= .05, 'x'])) +
     geom_vline(xintercept = min(df[df$d.4 <= .05, 'x'])) +
     geom_vline(xintercept = min(df[df$d.5 <= .05, 'x'])) +
     xlab("Total sample size") +
     ylab("Probability of non-equivalent groups") +
-    ggtitle("One hundred nuisance variables") +
+    ggtitle("A hundred nuisance variables") +
     coord_cartesian(ylim=c(0,1)) +
     scale_x_continuous(breaks=seq(0, 1000, by=100),
-                       sec.axis=dup_axis(breaks=c(#min(df[df$d.2 <= .05, 'x']),
-                                         min(df[df$d.3 <= .05, 'x']),
-                                         min(df[df$d.4 <= .05, 'x']),
-                                         min(df[df$d.5 <= .05, 'x'])))) +
-    theme_bw(base_size=16);
+                       sec.axis=dup_axis(breaks=c(min(df[df$d.3 <= .05, 'x']),
+                                                  min(df[df$d.4 <= .05, 'x']),
+                                                  min(df[df$d.5 <= .05, 'x'])))) +
+    theme_bw(base_size = 16);
 
 ggsave(file.path(outputPath, "figure 3 - non-equivalence probability for 100 nuisance variables.png"),
        width = 14,
@@ -196,7 +204,7 @@ ggsave(file.path(outputPath, "figure 3 - non-equivalence probability for 100 nui
 
 ```
 
-```{r tab.cap="Required sample size to achieve 99%, 95%, 90%, and 80% likelihood of randomization success, with non-equivalence defined as group differences exceeding Cohen's d = .1, .2, .3, .4 and .5, and assuming one, ten, or a hundred nuisance variables exist." }
+```{r tab.cap="Required sample size to achieve 99%, 95%, 90%, and 80% likelihood of randomization success (P(equivalence) or P(eq)), with non-equivalence defined as group differences exceeding Cohen's d = 0.1, 0.2, 0.3, 0.4 and 0.5, and assuming one, ten, or a hundred nuisance variables exist." }
 
   tableDf <- pwr.randomizationSuccess(d=seq(.1, .5, .1),
                                       nNuisanceVars = c(1, 10, 100),
@@ -209,7 +217,7 @@ ggsave(file.path(outputPath, "figure 3 - non-equivalence probability for 100 nui
                   rep(NA, 5),
                   tableDf['Nuisance var: 100', , ]);
 
-  rownames(table1) <- gsub("Equival. prob:", "  P(eq):", rownames(table1));
+  rownames(table1) <- gsub("Equival. prob:", "  P(eq) = ", rownames(table1));
   colnames(table1) <- gsub("Nonequival. at: d=", "d =", colnames(table1));
 
   rownames(table1)[c(1, 6, 11)] <- paste0("**", c(1, 10, 100),
@@ -290,7 +298,7 @@ ggsave(file.path(outputPath, "figure 3 - non-equivalence probability for 100 nui
 
   longDatReplication <- melt(c(dat[, grep('replicationProbNonequivalence', names(dat))]));
   names(longDatReplication) <- c('probability', 'parameters');
-  longDatReplication$n <- rep(dat$replicationSampleSize, nrow(longDatReplication)/ nrow(dat));
+  longDatReplication$n <- rep(dat$replicationSampleSize, nrow(longDatReplication) / nrow(dat));
   longDatReplication$d <- gsub('replicationProbNonequivalence_d(\\..)_.*',
                             'd = \\1', longDatReplication$parameters);
   longDatReplication$nVar <- gsub('replicationProbNonequivalence_d.._(.*)nvar',
@@ -311,9 +319,9 @@ ggsave(file.path(outputPath, "figure 3 - non-equivalence probability for 100 nui
                               "10",
                               "100")) +
     xlab("Number of nuisance variables") +
-    ylab("Probability of nonequivalent groups\nfor at least one nuisance variable");
+    ylab("Probability of randomization failure");
 
-ggsave(file.path(outputPath, "figure 4 - probability of nonequivalence for original studies.png"), 
+ggsave(file.path(outputPath, "figure 4 (old) - probability of randomization failure for original studies.png"), 
        width = 14,
        height = 10,
        type='cairo-png');
@@ -333,13 +341,48 @@ ggsave(file.path(outputPath, "figure 4 - probability of nonequivalence for origi
                               "10",
                               "100")) +
     xlab("Number of nuisance variables") +
-    ylab("Probability of nonequivalent groups\nfor at least one nuisance variable");
+    ylab("Probability of randomization failure");
   
-ggsave(file.path(outputPath, "figure 5 - probability of nonequivalence for replications.png"), 
+ggsave(file.path(outputPath, "figure 5 (old) - probability of randomization failure for replications.png"), 
        width = 14,
        height = 10,
        type='cairo-png');
+
+### Hmm, I guess we could use facets to combine them.
   
+    
+longDatBoth <- rbind(longDatOriginal, longDatReplication);
+longDatBoth$study <- c(rep("Original study", nrow(longDatOriginal)),
+                       rep("Replication", nrow(longDatReplication)));
+
+ggplot(longDatBoth, aes(x = nVar,
+                        y = probability,
+                        group = d,
+                        shape = d,
+                        fill = n)) +
+  geom_point(size=5, alpha=.75,
+             stroke = 1, color='black',
+             position=position_jitterdodge(jitter.width = .2,
+                                           jitter.height = 2,
+                                           dodge.width = .7)) +
+  theme_bw(base_size = 20) +
+  scale_shape_manual(values=c(21, 24)) +
+  scale_fill_continuous(low="#BBBBBB", high="#000000", limits=c(0, 500)) +
+  scale_x_discrete(labels=c("1",
+                            "10",
+                            "100")) +
+  guides(fill=guide_colorbar("N:", reverse=TRUE),
+         shape=guide_legend("d:")) +
+  theme(legend.key.height = unit(4, 'line')) +
+  xlab("Number of nuisance variables") +
+  ylab("Probability of randomization failure") +
+  facet_grid(. ~ study);
+
+ggsave(file.path(outputPath, "figure 4 - probability of randomization failure.png"), 
+       width = 16,
+       height = 8,
+       type='cairo-png');
+
   
 ```
 
