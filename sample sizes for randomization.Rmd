@@ -288,6 +288,15 @@ ggsave(file.path(outputPath, "figure 3 - non-equivalence probability for 100 nui
   dat[, grep('ProbNonequivalence', names(dat))] <- lapply(dat[, grep('ProbNonequivalence', names(dat))],
                                                           function(x) return(100*x));
   
+  for (currentVarName in grep('ProbNonequivalence', names(dat), value=TRUE)) {
+    pandoc.p('');
+    pandoc.header(gsub('(.*)ProbNonequivalence_d.(.)_(.*)nvar', 'Likelihood of randomization failure for \\1 studies, assuming \\3 nuisance variables and a tolerance of d < 0.\\2', currentVarName), 3);
+    pandoc.p('');
+    pander(descr(dat[, currentVarName]));
+    pandoc.p('');
+  }
+  
+  
   longDatOriginal <- melt(c(dat[, grep('originalProbNonequivalence', names(dat))]));
   names(longDatOriginal) <- c('probability', 'parameters');
   longDatOriginal$n <- rep(dat$originalSampleSize, nrow(longDatOriginal)/ nrow(dat));
@@ -386,4 +395,18 @@ ggsave(file.path(outputPath, "figure 4 - probability of randomization failure.pn
   
 ```
 
+```{r}
 
+pandoc.header("Randomization power examples", 2);
+
+pandoc.p(paste("128 participants, robust effect:",
+               formatCI(c(100*prob.randomizationSuccess(128, .5, 100),
+                          100*prob.randomizationSuccess(128, .5, 10)),
+                        digits=0, sep="%; ", suffix="%]")));
+
+pandoc.p(paste("128 participants, subtle effect: ",
+               formatCI(c(100*prob.randomizationSuccess(128, .2, 100),
+                          100*prob.randomizationSuccess(128, .2, 10)),
+                        digits=0, sep="%; ", suffix="%]")));
+
+```
