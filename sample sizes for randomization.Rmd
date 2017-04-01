@@ -106,7 +106,8 @@ setTabCapNumbering();
                        sec.axis=dup_axis(breaks=c(min(df[df$d.2 <= .05, 'x']),
                                                   min(df[df$d.3 <= .05, 'x']),
                                                   min(df[df$d.4 <= .05, 'x']),
-                                                  min(df[df$d.5 <= .05, 'x'])))) +
+                                                  min(df[df$d.5 <= .05, 'x'])),
+                                         name=element_blank())) +
     theme_bw(base_size = 16);
 
 ggsave(file.path(outputPath, "figure 1 - non-equivalence probability for 1 nuisance variable.png"),
@@ -150,7 +151,8 @@ ggsave(file.path(outputPath, "figure 1 - non-equivalence probability for 1 nuisa
                        sec.axis=dup_axis(breaks=c(min(df[df$d.2 <= .05, 'x']),
                                                   min(df[df$d.3 <= .05, 'x']),
                                                   min(df[df$d.4 <= .05, 'x']),
-                                                  min(df[df$d.5 <= .05, 'x'])))) +
+                                                  min(df[df$d.5 <= .05, 'x'])),
+                                         name=element_blank())) +
     theme_bw(base_size = 16);
 
 ggsave(file.path(outputPath, "figure 2 - non-equivalence probability for 10 nuisance variables.png"),
@@ -193,7 +195,8 @@ ggsave(file.path(outputPath, "figure 2 - non-equivalence probability for 10 nuis
     scale_x_continuous(breaks=seq(0, 1000, by=100),
                        sec.axis=dup_axis(breaks=c(min(df[df$d.3 <= .05, 'x']),
                                                   min(df[df$d.4 <= .05, 'x']),
-                                                  min(df[df$d.5 <= .05, 'x'])))) +
+                                                  min(df[df$d.5 <= .05, 'x'])),
+                                         name=element_blank())) +
     theme_bw(base_size = 16);
 
 ggsave(file.path(outputPath, "figure 3 - non-equivalence probability for 100 nuisance variables.png"),
